@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ارتاح - دليلك للأقرب</title>
+
+<style>
+:root {
+    --primary: #0f3d2e;
+    --accent: #1a73e8;
+    --bg: #f6f8fb;
+}
+
+body {
+    margin: 0;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background: var(--bg);
+    color: #1b1b1b;
+}
+
+header {
+    background: var(--primary);
+    color: white;
+    padding: 25px 18px;
+    text-align: center;
+    font-size: 24px;
+    font-weight: bold;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+}
+
+.sub {
+    text-align: center;
+    font-size: 14px;
+    color: #666;
+    margin-top: 10px;
+}
+
+.container {
+    padding: 15px;
+    max-width: 600px;
+    margin: auto;
+}
+
+.grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-top: 20px;
+}
+
+.btn {
+    background: white;
+    border: 1px solid #eee;
+    padding: 20px 10px;
+    border-radius: 16px;
+    cursor: pointer;
+    font-size: 16px;
+    font-weight: 600;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.02);
+    transition: all 0.3s ease;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+}
+
+.btn:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 15px rgba(0,0,0,0.08);
+    border-color: var(--primary);
+}
+
+.btn:active {
+    transform: scale(0.95);
+}
+
+.card {
+    background: white;
+    margin-top: 15px;
+    padding: 16px;
+    border-radius: 16px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+    animation: fadeIn 0.5s ease both;
+    border-right: 5px solid var(--primary);
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(15px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.title {
+    font-weight: bold;
+    color: var(--primary);
+    font-size: 17px;
+    margin-bottom: 5px;
+}
+
+.info {
+    font-size: 13px;
+    color: #555;
+    margin: 3px 0;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.maps-link {
+    display: inline-block;
+    margin-top: 12px;
+    padding: 10px 20px;
+    background: var(--accent);
+    color: white;
+    border-radius: 10px;
+    text-decoration: none;
+    font-size: 14px;
+    font-weight: 500;
+    width: 100%;
+    text-align: center;
+    box-sizing: border-box;
+}
+
+.loading {
+    text-align: center;
+    padding: 40px;
+    color: #777;
+}
+
+.loader-spinner {
+    border: 4px solid #f3f3f3;
+    border-top: 4px solid var(--primary);
+    border-radius: 50%;
+    width: 30px;
+    height: 30px;
+    animation: spin 1s linear infinite;
+    margin: 10px auto;
+}
+
+@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+</style>
+</head>
+
+<body>
+
+<header>ارتاح</header>
+<div class="sub">اختار وجهتك وخلك مرتاح — نجيب لك الأقرب</div>
+
+<div class="container">
+    <div class="grid">
+        <button class="btn" onclick="search('amenity','cafe')">☕ <span>كافيه</span></button>
+        <button class="btn" onclick="search('amenity','restaurant')">🍔 <span>مطعم</span></button>
+        <button class="btn" onclick="search('shop','supermarket')">🛒 <span>سوبرماركت</span></button>
+        <button class="btn" onclick="search('amenity','pharmacy')">🏥 <span>صيدلية</span></button>
+        <button class="btn" onclick="search('amenity','fuel')">⛽ <span>محطة</span></button>
+        <button class="btn" onclick="search('amenity','mosque')">🕌 <span>مسجد</span></button>
+    </div>
+
+    <div id="status"></div>
+    <div id="results"></div>
+</div>
+
+<script>
+let lat = null;
+let lng = null;
+
+// طلب الموقع عند تحميل الصفحة
+window.onload = () => {
+    if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+            (pos) => {
+                lat = pos.coords.latitude;
+                lng = pos.coords.longitude;
+                console.log("Location fixed");
+            },
+            (err) => {
+                alert("يرجى تفعيل الموقع GPS لكي يعمل التطبيق بشكل صحيح");
+            }
+        );
+    }
+};
+
+// حساب المسافة الحقيقية بالكيلومتر (Haversine formula)
+function getDistance(lat1, lon1, lat2, lon2) {
+    const R = 6371; // نصف قطر الأرض بالكيلومتر
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+              Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
+              Math.sin(dLon/2) * Math.sin(dLon/2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    return R * c; 
+}
+
+async function search(category, type) {
+    if (!lat || !lng) {
+        alert("انتظر قليلاً حتى يتم تحديد موقعك أو فعل GPS");
+        return;
+    }
+
+    const resultsBox = document.getElementById("results");
+    const statusBox = document.getElementById("status");
+
+    resultsBox.innerHTML = "";
+    statusBox.innerHTML = `
+        <div class="loading">
+            <div class="loader-spinner"></div>
+            جاري البحث عن أقرب ${type === 'cafe' ? 'كافيه' : 'مكان'}...
+        </div>`;
+
+    // Overpass Query
+    // نبحث في نطاق 5000 متر (5 كيلو)
+    const query = `
+    [out:json];
+    (
+      node["${category}"="${type}"](around:5000,${lat},${lng});
+      way["${category}"="${type}"](around:5000,${lat},${lng});
+    );
+    out center;
+    `;
+
+    try {
+        const response = await fetch("https://overpass-api.de/api/interpreter", {
+            method: "POST",
+            body: query
+        });
+        const data = await response.json();
+
+        statusBox.innerHTML = "";
+        let list = [];
+
+        data.elements.forEach(e => {
+            const la = e.lat || (e.center && e.center.lat);
+            const ln = e.lon || (e.center && e.center.lon);
+            if (!la || !ln) return;
+
+            const distance = getDistance(lat, lng, la, ln);
+            list.push({
+                name: e.tags.name || "مكان غير مسمى",
+                lat: la,
+                lng: ln,
+                dist: distance
+            });
+        });
+
+        // ترتيب حسب الأقرب
+        list.sort((a, b) => a.dist - b.dist);
+
+        // أخذ أول 10 نتائج
+        const topResults = list.slice(0, 10);
+
+        if (topResults.length === 0) {
+            resultsBox.innerHTML = "<div class='card' style='text-align:center'>للأسف، لم نجد نتائج قريبة جداً منك</div>";
+            return;
+        }
+
+        topResults.forEach(p => {
+            const distText = p.dist < 1 
+                ? `${(p.dist * 1000).toFixed(0)} متر` 
+                : `${p.dist.toFixed(1)} كم`;
+
+            resultsBox.innerHTML += `
+                <div class="card">
+                    <div class="title">${p.name}</div>
+                    <div class="info">📍 يبعد عنك حوالي ${distText}</div>
+                    <a class="maps-link" target="_blank" href="https://www.google.com/maps?q=${p.lat},${p.lng}">
+                        فتح في خرائط Google
+                    </a>
+                </div>
+            `;
+        });
+
+    } catch (error) {
+        statusBox.innerHTML = "<div class='loading'>حدث خطأ أثناء الاتصال بالخادم، حاول مرة أخرى</div>";
+    }
+}
+</script>
+
+</body>
+</html>
